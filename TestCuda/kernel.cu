@@ -16,11 +16,20 @@ __global__ void MatMul(int* c, const int* a, const int* b, int matWidth) {
     int baseCol = blockIdx.y * TILE_SIZE;
     int loop = matWidth / TILE_SIZE;
     int val = 0;
+    //Data fetching, global => register
+    int aElement = a[(baseRow + threadIdx.x) * matWidth + threadIdx.y];
+    int bElement = b[threadIdx.x * matWidth + baseCol + threadIdx.y];
     for (int startMulIndex = 0; startMulIndex < 1024; startMulIndex += TILE_SIZE) {
-        tileA[threadIdx.x][threadIdx.y] = a[(baseRow + threadIdx.x)       * matWidth + startMulIndex + threadIdx.y];
-        tileB[threadIdx.x][threadIdx.y] = b[(startMulIndex + threadIdx.x) * matWidth + baseCol       + threadIdx.y];
+        //Data fetching, register => shared memory
+        tileA[threadIdx.x][threadIdx.y] = aElement;
+        tileB[threadIdx.x][threadIdx.y] = bElement;
 
         __syncthreads();
+        //Data fetching, load next tile to register
+        if (startMulIndex + TILE_SIZE < 1024) {
+            aElement = a[(baseRow + threadIdx.x) * matWidth + startMulIndex + TILE_SIZE + threadIdx.y];
+            bElement = b[(startMulIndex + TILE_SIZE + threadIdx.x) * matWidth + baseCol + threadIdx.y];
+        }
         for (int i = 0; i < TILE_SIZE; ++i) {
             val += tileA[threadIdx.x][i] * tileB[i][threadIdx.y];
         }
